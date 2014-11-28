@@ -1,0 +1,12 @@
+package pack;
+
+message Message1
+{
+    required string prop1     = 1;
+	required int32  prop2     = 2;
+}
+
+message Message2 {
+    required int32  prop1     = 1;
+    repeated Message1 prop2   = 2;
+}
