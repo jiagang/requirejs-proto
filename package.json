@@ -10,7 +10,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "http://git.gw.com.cn:7990/scm/~jiagang/requirejs-proto.git"
+    "url": "git@github.com:jiagang/requirejs-proto.git"
   },
   "author": "jiagang <jiagang1985@gmail.com>",
   "licenses": [
