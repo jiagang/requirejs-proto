@@ -30,7 +30,7 @@ protobuf的requirejs插件
         ...
     });
 
-编译优化时设置proto2js为true，并且设置ProtoBuf.noparse的path，可以将原依赖的proto文件编译为json格式生成对应的模块写入文件
+编译优化时设置proto2json为true，并且设置ProtoBuf.noparse的path，可以将原依赖的proto文件编译为json格式生成对应的模块写入文件
 
     paths: {
         'ProtoBuf.noparse': '../../bower_components/protobuf/dist/ProtoBuf.noparse'
@@ -40,7 +40,7 @@ protobuf的requirejs插件
     ],
     proto: {
         ext: 'proto',
-        proto2js: true // 优化时是否将proto文件编译为json文件
+        proto2json: true // 优化时是否将proto文件编译为json文件
     },
     stubModules: ['text', 'ProtoBuf'], // 优化的文件中不再需要使用这两个模块
     findNestedDependencies: true
