@@ -64,9 +64,12 @@ define(['module', 'text', 'ProtoBuf'], function(module, text) {
         } else {
 
             // 请求指定文件
-            // 如果text存在则使用text请求文件（优化前），否则使用req直接请求模块（优化后）
+            // 优化前使用text请求文件，优化后使用req直接请求模块
             var requestFun = function(callback) {
-                return text && text.get ? text.get(req.toUrl(fileName), callback) : req([fileName], callback);
+
+                // 判断是否编译优化后的版本
+                var built = requireConfig.proto && requireConfig.proto.built;
+                return built ? req([fileName], callback) : text.get(req.toUrl(fileName), callback);
             };
 
             var callback = function(loadFun, data) {
@@ -149,9 +152,15 @@ define(['module', 'text', 'ProtoBuf'], function(module, text) {
         }
     }
 
+    // 优化结束时在给requirejs添加配置
+    function onLayerEnd(write) {
+        write('require.config({proto: {built: true}})');
+    }
+
     // expose public functions
     return {
         load: load,
-        write: write
+        write: write,
+        onLayerEnd: onLayerEnd
     };
 });
