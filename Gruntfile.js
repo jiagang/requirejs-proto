@@ -26,23 +26,22 @@ module.exports = function(grunt) {
             build: {
                 options: {
                     //optimize: 'none',
+                    almond: true,
                     baseUrl: 'test/dev',
                     mainConfigFile: 'test/dev/main.js',
                     out: 'test/build/main.js',
                     name: 'main',
-                    paths: {
-                        'ProtoBuf.noparse': '../../bower_components/protobuf/dist/ProtoBuf.noparse'
-                    },
-                    include: [
-                        'ProtoBuf.noparse'
-                    ],
                     proto: {
                         proto2json: true // 优化时是否将proto文件编译为json文件
                     },
-                    stubModules: ['text', 'ProtoBuf'],
+                    stubModules: ['text', 'proto', 'ProtoBuf'],
                     findNestedDependencies: true
                 }
             }
+        },
+
+        usemin: {
+            html: ['test/build/*.html']
         },
 
         connect: {
@@ -101,9 +100,10 @@ module.exports = function(grunt) {
     grunt.loadNpmTasks('grunt-mocha');
     grunt.loadNpmTasks('grunt-contrib-clean');
     grunt.loadNpmTasks('grunt-contrib-copy');
+    grunt.loadNpmTasks('grunt-usemin');
 
     // grunt-mocha使用phantomjs不支持Function.prototype.bind
     // grunt.registerTask('test', ['jshint', 'connect', 'mocha']);
-    grunt.registerTask('build', ['jshint', 'clean', 'copy', 'requirejs']);
+    grunt.registerTask('build', ['jshint', 'clean', 'copy', 'requirejs', 'usemin']);
 
 };
