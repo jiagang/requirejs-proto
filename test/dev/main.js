@@ -6,6 +6,11 @@ require.config({
         'ProtoBuf': '../../bower_components/protobuf/dist/ProtoBuf',
         'text': '../../bower_components/requirejs-text/text',
         'proto': '../../proto'
+    },
+    proto: {
+        ext: 'proto',
+        convertFieldsToCamelCase: true,
+        populateAccessors: false
     }
 });
 

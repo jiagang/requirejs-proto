@@ -10,10 +10,38 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
 
     var builderMap = {};
 
+    var options = null;
+
+    /**
+     * 初始化参数设置
+     * @param requireConfig
+     */
+    function initOptions(requireConfig) {
+        if (!options) {
+            var proto = requireConfig && requireConfig.proto || {};
+            options = {
+
+                // 扩展名只支持proto和json两种，默认扩展名为proto
+                ext: proto.ext || 'proto',
+
+                // 是否在requirejs优化时转换proto文件为json格式，默认不转换
+                proto2json: proto.proto2json !== undefined ? proto.proto2json : false,
+
+                // 设置ProtobufJs的参数convertFieldsToCamelCase，控制是否转换字段名为驼峰格式，不设置按照ProtobufJs默认值
+                convertFieldsToCamelCase: proto.convertFieldsToCamelCase,
+
+                // 设置ProtobufJs的参数populateAccessors，控制是否创建字段对应访问器（get/set），不设置按照ProtobufJs默认值
+                populateAccessors: proto.populateAccessors
+            };
+        }
+        return options;
+    }
+
     function load(name, req, onload, requireConfig) {
 
-        // 扩展名只支持proto和json两种
-        var defaultExt = (requireConfig.proto && requireConfig.proto.ext) || 'proto';
+        var options = initOptions(requireConfig);
+
+        var defaultExt = options.ext;
 
         // 解析name，取得其中的文件名称和请求的proto类型名称
         var arr = name.split('::');
@@ -34,9 +62,7 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
         // 优化时请求对应文件后缓存
         if (requireConfig.isBuild) {
 
-            // 默认proto2json为false
-            var proto2json = (requireConfig.proto && requireConfig.proto.proto2json) || false;
-
+            var proto2json = options.proto2json;
             var protoBuf = 'ProtoBuf';
 
             // 如果proto2json为true并且设置了stubModules移除了'ProtoBuf'模块则加载同目录下的'ProtoBuf.noparse'模块
@@ -60,11 +86,12 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
                 text.get(req.toUrl(fileNameWithExt), function(data) {
                     buildMap[fileName] = {
                         modules: [module],
-                        ext: ext,
                         data: data,
-                        proto2json: proto2json,
-                        protoBuf: protoBuf
+                        protoBuf: protoBuf,
+                        ext: ext,
+                        options: options
                     };
+
                     onload();
                 });
             } else {
@@ -87,9 +114,9 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
 
                 var builder = null;
                 if (ext === 'proto') {
-                    builder = ProtoBuf.loadProto(data);
+                    builder = ProtoBuf.loadProto(data, ProtoBuf.newBuilder(options));
                 } else {
-                    builder = ProtoBuf.loadJson(data);
+                    builder = ProtoBuf.loadJson(data, ProtoBuf.newBuilder(options));
                 }
 
                 builderMap[fileName] = builder;
@@ -108,17 +135,17 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
 
     function generateModule(moduleName, deps, content) {
         return 'define(\'' + moduleName + '\', [' +
-            deps.map(function(dep) {return '\'' + dep + '\'';}).join(',') + '], ' + content + ')';
+            deps.map(function(dep) {return '\'' + dep + '\'';}).join(',') + '], ' + content + ');';
     }
 
     // 将proto数据写成对应名称模块，内容为解析proto数据返回builder对象
-    function generateProtoBuilderModule(moduleName, protoData, ext, proto2json, protoBuf) {
+    function generateProtoBuilderModule(moduleName, protoData, protoBuf, ext, options) {
 
         var data = protoData;
 
         // 将proto格式数据转为json格式
         if (ext === 'proto') {
-            if (proto2json === true) {
+            if (options.proto2json === true) {
                 var parser = new ProtoBuf.DotProto.Parser(data);
                 data = JSON.stringify(parser.parse());
                 ext = 'json';
@@ -126,7 +153,16 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
         } else {
             data = JSON.stringify(JSON.parse(data));
         }
-        var content = 'function(ProtoBuf) {return ProtoBuf.' + (ext === 'proto' ? 'loadProto' : 'loadJson') + '(\'' + text.jsEscape(data) + '\')}';
+
+        // 如果设置了options中的convertFieldsToCamelCase或者populateAccessors则创建builder
+        var builderStr = '';
+        if (options.convertFieldsToCamelCase !== undefined || options.populateAccessors !== undefined) {
+            builderStr = ',ProtoBuf.newBuilder({'+
+            'convertFieldsToCamelCase:' + options.convertFieldsToCamelCase+
+            ',populateAccessors:' + options.populateAccessors+ '})';
+        }
+        var content = 'function(ProtoBuf) {return ProtoBuf.' + (ext === 'proto' ? 'loadProto' : 'loadJson') +
+            '(\'' + text.jsEscape(data) + '\'' + builderStr + ');}';
 
         return generateModule(moduleName, [protoBuf], content);
     }
@@ -150,7 +186,7 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
                     if (!written[builderModuleName]) {
 
                         // 将buildMap中的proto数据写成对应名称模块
-                        writeFun(generateProtoBuilderModule(builderModuleName, protoBuilderModule.data, protoBuilderModule.ext, protoBuilderModule.proto2json, protoBuilderModule.protoBuf));
+                        writeFun(generateProtoBuilderModule(builderModuleName, protoBuilderModule.data, protoBuilderModule.protoBuf, protoBuilderModule.ext, protoBuilderModule.options));
                         written[builderModuleName] = true;
                     }
 

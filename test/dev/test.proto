@@ -7,6 +7,10 @@ message Message1
 }
 
 message Message2 {
-    required int32  prop1     = 1;
+    required int32    prop1   = 1;
     repeated Message1 prop2   = 2;
+}
+
+message Message3 {
+    required int32    test_prop   = 1;
 }

@@ -19,6 +19,15 @@ define([], function() {
                 done();
             });
         });
+        it('convertFieldsToCamelCase and populateAccessors', function(done) {
+            require(['proto!test::pack.Message3'], function(Message3) {
+                var m3 = new Message3(3);
+                console.log(m3);
+                expect(m3).to.have.property('testProp');
+                expect(m3).to.not.have.property('getTestProp');
+                done();
+            });
+        });
     });
 
     describe("protobufjs", function() {

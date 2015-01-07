@@ -15,7 +15,9 @@ protobuf的requirejs插件
             'proto': '../../bower_components/requirejs-proto/proto'
         },
         proto: {
-            ext: 'proto' // 加载proto文件的扩展名以及文件格式，只支持proto/json，默认为proto
+            ext: 'proto', // 加载proto文件的扩展名以及文件格式，只支持proto/json，默认为proto
+            convertFieldsToCamelCase: false, // 是否转换字段名，默认false
+            populateAccessors: true // 是否创建字段访问器，默认true
         }
     });
 
