@@ -1,7 +1,7 @@
 define([], function() {
-    describe("requirejs-proto", function() {
+    describe("requirejsjs-proto", function() {
         it('load builder', function(done) {
-            require(['proto!test'], function(builder) {
+            requirejs(['proto!test'], function(builder) {
                 var pack = builder.build('pack');
                 var Message1 = builder.build('pack.Message1');
                 var m = new pack.Message1('test', 1);
@@ -12,17 +12,15 @@ define([], function() {
             });
         });
         it('load message', function(done) {
-            require(['proto!test::pack.Message1', 'proto!test::pack.Message2'], function(Message1, Message2) {
+            requirejs(['proto!test::pack.Message1', 'proto!test::pack.Message2'], function(Message1, Message2) {
                 var m2 = new Message2(2);
-                console.log(m2);
                 expect(m2).to.have.property('prop2').with.length(0);
                 done();
             });
         });
         it('convertFieldsToCamelCase and populateAccessors', function(done) {
-            require(['proto!test::pack.Message3'], function(Message3) {
+            requirejs(['proto!test::pack.Message3'], function(Message3) {
                 var m3 = new Message3(3);
-                console.log(m3);
                 expect(m3).to.have.property('testProp');
                 expect(m3).to.not.have.property('getTestProp');
                 done();
@@ -66,7 +64,7 @@ define([], function() {
         ];
 
         it('parse proto file', function(done) {
-            require(['protoify', 'proto!json.proto::js'], function(protoify, JS) {
+            requirejs(['protoify', 'proto!json.proto::js'], function(protoify, JS) {
                 samples.forEach(function(sample) {
                     // Encode each sample to a Buffer
                     var buf = protoify(sample, JS);
@@ -82,7 +80,7 @@ define([], function() {
         });
 
         it('parse json file', function(done) {
-            require(['protoify', 'proto!json.json::js'], function(protoify, JS) {
+            requirejs(['protoify', 'proto!json.json::js'], function(protoify, JS) {
                 samples.forEach(function(sample) {
                     // Encode each sample to a Buffer
                     var buf = protoify(sample, JS);

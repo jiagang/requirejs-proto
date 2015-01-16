@@ -39,3 +39,5 @@ protobuf的requirejs插件
     },
     stubModules: ['text', 'proto', 'ProtoBuf'], // 优化的文件中不再text和proto插件本身，ProtoBuf也移除的话则会自动依赖同目录的ProtoBuf.noparse模块
     findNestedDependencies: true
+
+支持Nodejs中使用，需要依赖requirejs，详细查看<http://requirejs.org/docs/node.html>

@@ -2,6 +2,12 @@
  * @license requirejs-proto 0.1.0 Copyright (c) 2014 Jiagang
  * see: http://github.com/jiagang/requirejs-proto for details
  */
+
+/** 在nodejs环境中使用amdefine模块添加requirejs的define方法支持 */
+if (typeof define !== 'function') {
+    var define = require('amdefine')(module);
+}
+
 define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
 
     'use strict';
