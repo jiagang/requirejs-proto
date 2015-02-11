@@ -5,7 +5,8 @@ require.config({
         'ByteBuffer': '../../bower_components/byteBuffer/dist/ByteBufferAB',
         'ProtoBuf': '../../bower_components/protobuf/dist/ProtoBuf',
         'text': '../../bower_components/requirejs-text/text',
-        'proto': '../../proto'
+        'proto': '../../proto',
+        'proto2': '../../proto2'
     },
     proto: {
         ext: 'proto',
@@ -17,3 +18,7 @@ require.config({
 require(['test'], function() {
     mocha.globals([]).run();
 });
+
+//require(['proto2!test.proto'], function(text) {
+//    console.log(text);
+//});

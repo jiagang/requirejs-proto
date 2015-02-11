@@ -94,5 +94,21 @@ define([], function() {
                 done();
             });
         });
+
+        it('muitiple proto file', function(done) {
+            requirejs(['proto!multiple/proto1::Message3', 'proto!multiple/proto3::Message3'], function(MessageFromProto1, MessageFromProto3) {
+                var data = {
+                    prop1: 'test',
+                    prop2: 2
+                };
+                var message1 = new MessageFromProto1(data);
+                var byteBuffer = message1.encode();
+
+                var message2 = MessageFromProto3.decode(byteBuffer);
+
+                expect(message1.toRaw()).to.eql(message2.toRaw());
+                done();
+            });
+        });
     });
 });

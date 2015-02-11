@@ -18,6 +18,8 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
 
     var options = null;
 
+    var filesCache = {};
+
     /**
      * 初始化参数设置
      * @param requireConfig
@@ -43,6 +45,112 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
         return options;
     }
 
+    function extend(Child, Parent, properties) {
+        var F = function(){};
+        F.prototype = Parent.prototype;
+        var prototype = Child.prototype = new F();
+        if (typeof properties === 'object') {
+            var keys = Object.keys(properties);
+            keys.forEach(function(key) {
+                prototype[key] = properties[key];
+            });
+        }
+        prototype.constructor = Child;
+        Child.uber = Parent.prototype;
+    }
+
+    function WrapperBuilder(options, req, ext, isBuild) {
+
+        ProtoBuf.Builder.call(this, options);
+        this.req = req;
+        this.ext = ext;
+        this.isBuild = isBuild;
+    }
+
+    extend(WrapperBuilder, ProtoBuf.Builder, {
+
+        // 得到指定文件的文本内容
+        fetchText: function(filename, callback) {
+
+            // build时使用text.get方法取得文件内容，并且将内容缓存下待write时写入压缩文件
+            if (this.isBuild) {
+                var content = filesCache[filename];
+                if (content) {
+                    callback(content);
+                } else {
+                    text.get(this.req.toUrl(filename), function(content) {
+                        filesCache[filename] = content;
+                        callback(content);
+                    });
+                }
+            } else {
+
+                // 直接使用text插件方式加载文本内容
+                this.req(['text!' + filename], function(content) {
+                    callback(content);
+                });
+            }
+        },
+
+        // 加载指定文件，解析为json对象后导入到builder中，其中有imports则提出了递归导入
+        load: function(filename, done) {
+
+            var files = this.files;
+            if (files.hasOwnProperty(filename)) {
+                return;
+            }
+            files[filename] = false;
+
+            var builder = this;
+            this.fetchText(filename, function(content) {
+
+                var json;
+
+                if (builder.ext !== 'proto') {
+                    json = JSON.parse(content);
+                } else {
+                    var parser = new ProtoBuf.DotProto.Parser(content);
+                    json = parser.parse();
+                }
+
+                // 有import文件则递归导入
+                if (json['imports'] && json['imports'].length > 0) {
+
+                    var importRoot, delim = '/';
+
+                    if (filename.indexOf("/") >= 0) { // Unix
+                        importRoot = filename.replace(/\/[^\/]*$/, "");
+                        if (/* /file.proto */ importRoot === "") {
+                            importRoot = "/";
+                        }
+                    } else if (filename.indexOf("\\") >= 0) { // Windows
+                        importRoot = filename.replace(/\\[^\\]*$/, "");
+                        delim = '\\';
+                    } else {
+                        importRoot = ".";
+                    }
+                    json['imports'].forEach(function(eachFileName) {
+                        var importFilename = importRoot + delim + eachFileName;
+                        builder.load(importFilename, done);
+                    });
+                    json['imports'] = [];
+                }
+                builder['import'](json, filename);
+                files[filename] = true;
+
+                // 判断所有依赖的file都导入完成了则调用done返回
+                var fileNames = Object.keys(files);
+                var finish = fileNames.every(function(fileName) {
+                    return files[fileName] === true;
+                });
+                if (finish === true) {
+                    builder.resolveAll();
+                    done(builder);
+                }
+            });
+        }
+    });
+
     function load(name, req, onload, requireConfig) {
 
         var options = initOptions(requireConfig);
@@ -64,6 +172,8 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
         }
 
         var className = (arr.length > 1) && arr[1];
+
+        var builder;
 
         // 优化时请求对应文件后缓存
         if (requireConfig.isBuild) {
@@ -89,10 +199,12 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
             };
 
             if (!buildMap[fileName]) {
-                text.get(req.toUrl(fileNameWithExt), function(data) {
+                builder = new WrapperBuilder(options, req, ext, requireConfig.isBuild);
+                builder.load(fileNameWithExt, function() {
                     buildMap[fileName] = {
                         modules: [module],
-                        data: data,
+                        files: Object.keys(builder.files),
+                        //data: data,
                         protoBuf: protoBuf,
                         ext: ext,
                         options: options
@@ -108,7 +220,7 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
         }
 
         // 缓存的builder存在则直接返回，否则异步请求文件后返回
-        var builder = builderMap[fileName];
+        builder = builderMap[fileName];
         if (!!builder) {
             if (!!className) {
                 onload(builder.build(className));
@@ -116,15 +228,9 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
                 onload(builder);
             }
         } else {
-            text.get(req.toUrl(fileNameWithExt), function(data) {
 
-                var builder = null;
-                if (ext === 'proto') {
-                    builder = ProtoBuf.loadProto(data, ProtoBuf.newBuilder(options));
-                } else {
-                    builder = ProtoBuf.loadJson(data, ProtoBuf.newBuilder(options));
-                }
-
+            builder = new WrapperBuilder(options, req, ext, requireConfig.isBuild);
+            builder.load(fileNameWithExt, function() {
                 builderMap[fileName] = builder;
 
                 // 如果有类型名称参数，则返回builder编译得到指定类型，否则直接返回builder
@@ -144,33 +250,54 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
             deps.map(function(dep) {return '\'' + dep + '\'';}).join(',') + '], ' + content + ');';
     }
 
-    // 将proto数据写成对应名称模块，内容为解析proto数据返回builder对象
-    function generateProtoBuilderModule(moduleName, protoData, protoBuf, ext, options) {
+    // 生成指定文件名称的文本模块
+    function generateProtoTextModule(filename, ext, proto2json) {
 
-        var data = protoData;
+        // 指定文件没有写入过
+        if (!written[filename]) {
 
-        // 将proto格式数据转为json格式
-        if (ext === 'proto') {
-            if (options.proto2json === true) {
-                var parser = new ProtoBuf.DotProto.Parser(data);
-                data = JSON.stringify(parser.parse());
-                ext = 'json';
+            written[filename] = true;
+            var content = filesCache[filename];
+            if (ext === 'proto') {
+                if (proto2json === true) {
+                    var parser = new ProtoBuf.DotProto.Parser(content);
+                    content = JSON.stringify(parser.parse());
+                }
+            } else {
+                content = JSON.stringify(JSON.parse(content));
             }
-        } else {
-            data = JSON.stringify(JSON.parse(data));
-        }
 
-        // 如果设置了options中的convertFieldsToCamelCase或者populateAccessors则创建builder
-        var builderStr = '';
-        if (options.convertFieldsToCamelCase !== undefined || options.populateAccessors !== undefined) {
-            builderStr = ',ProtoBuf.newBuilder({'+
-            'convertFieldsToCamelCase:' + options.convertFieldsToCamelCase+
-            ',populateAccessors:' + options.populateAccessors+ '})';
+            content = text.jsEscape(content);
+            return generateModule('text!' + filename, [], 'function() {return \'' + content + '\';}') + '\n';
         }
-        var content = 'function(ProtoBuf) {return ProtoBuf.' + (ext === 'proto' ? 'loadProto' : 'loadJson') +
-            '(\'' + text.jsEscape(data) + '\'' + builderStr + ');}';
+        return '';
+    }
 
-        return generateModule(moduleName, [protoBuf], content);
+    // 将proto数据写成对应名称模块，内容为解析proto数据返回builder对象
+    function generateProtoBuilderModule(moduleName, files, protoBuf, ext, options) {
+
+        var result = '';
+
+        // 生成依赖的文件模块
+        files.forEach(function(filename) {
+            result += generateProtoTextModule(filename, ext, options.proto2json);
+        });
+        ext = (options.proto2json === true ? 'json' : ext);
+
+        var content = 'function(ProtoBuf) {var builder = ProtoBuf.newBuilder({'+
+        'convertFieldsToCamelCase:' + options.convertFieldsToCamelCase+
+        ',populateAccessors:' + options.populateAccessors+ '});' +
+        'var contents = Array.prototype.slice.call(arguments, 1);contents.forEach(function(content) {' +
+        (ext === 'proto' ? 'var json = new ProtoBuf.DotProto.Parser(content).parse();' : 'var json = JSON.parse(content);') +
+        'delete json[\'imports\'];' +
+        'builder[\'import\'](json);});' +
+        'builder.resolveAll();return builder;}';
+
+        var deps = files.map(function(file) {
+            return 'text!' + file;
+        });
+        deps.unshift(protoBuf);
+        return result + generateModule(moduleName, deps, content);
     }
 
     // 生成消息类型模块，内容为依赖builder模块再build编译返回对应的消息类型
@@ -192,7 +319,7 @@ define(['module', 'text', 'ProtoBuf'], function(module, text, ProtoBuf) {
                     if (!written[builderModuleName]) {
 
                         // 将buildMap中的proto数据写成对应名称模块
-                        writeFun(generateProtoBuilderModule(builderModuleName, protoBuilderModule.data, protoBuilderModule.protoBuf, protoBuilderModule.ext, protoBuilderModule.options));
+                        writeFun(generateProtoBuilderModule(builderModuleName, protoBuilderModule.files, protoBuilderModule.protoBuf, protoBuilderModule.ext, protoBuilderModule.options));
                         written[builderModuleName] = true;
                     }
 

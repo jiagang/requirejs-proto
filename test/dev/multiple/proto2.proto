@@ -1,0 +1,6 @@
+import "proto3.proto";
+
+message Message2 {
+    required string prop1     = 1;
+	required int32  prop2     = 2;
+}
